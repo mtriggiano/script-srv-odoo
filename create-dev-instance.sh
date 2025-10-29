@@ -170,6 +170,17 @@ else
   echo "⚠️  Advertencia: No se encontró filestore de producción en $PROD_FILESTORE"
 fi
 
+# Neutralizar base de datos (eliminar licencia, desactivar correos/crons)
+echo "🛡️  Neutralizando base de datos de desarrollo..."
+cd "$BASE_DIR"
+source "$VENV_DIR/bin/activate"
+python3 /home/go/scripts/neutralize-database.py "$DB_NAME"
+if [ $? -eq 0 ]; then
+  echo "✅ Base de datos neutralizada correctamente"
+else
+  echo "⚠️  Advertencia: Error al neutralizar base de datos"
+fi
+
 # Generar archivo de configuración Odoo (modo desarrollo)
 echo "⚙️ Generando archivo de configuración Odoo (modo desarrollo)..."
 cat > "$ODOO_CONF" <<EOF
