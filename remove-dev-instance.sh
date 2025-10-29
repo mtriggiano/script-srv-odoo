@@ -135,17 +135,38 @@ sudo certbot delete --cert-name "$DOMAIN" --non-interactive >/dev/null 2>&1 || t
 
 # Eliminar subdominio de Cloudflare
 echo "☁️ Eliminando subdominio de Cloudflare ($DOMAIN)..."
-DNS_RECORD_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=$DOMAIN" \
-  -H "Authorization: Bearer $CF_API_TOKEN" \
-  -H "Content-Type: application/json" | jq -r '.result[0].id')
 
-if [[ "$DNS_RECORD_ID" != "null" && -n "$DNS_RECORD_ID" ]]; then
-  curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$DNS_RECORD_ID" \
-    -H "Authorization: Bearer $CF_API_TOKEN" \
-    -H "Content-Type: application/json" > /dev/null
-  echo "✅ Subdominio $DOMAIN eliminado de Cloudflare."
+if [[ -z "$CF_ZONE_ID" || "$CF_ZONE_ID" == "null" ]]; then
+  echo "⚠️  No se pudo obtener el Zone ID de Cloudflare. Verifica el token y el nombre de zona."
 else
-  echo "⚠️  No se encontró registro DNS para $DOMAIN en Cloudflare."
+  echo "   Zone ID: $CF_ZONE_ID"
+  
+  # Buscar registro DNS
+  DNS_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records?name=$DOMAIN" \
+    -H "Authorization: Bearer $CF_API_TOKEN" \
+    -H "Content-Type: application/json")
+  
+  DNS_RECORD_ID=$(echo "$DNS_RESPONSE" | jq -r '.result[0].id')
+  
+  if [[ "$DNS_RECORD_ID" != "null" && -n "$DNS_RECORD_ID" ]]; then
+    echo "   Registro DNS encontrado: $DNS_RECORD_ID"
+    
+    DELETE_RESPONSE=$(curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/dns_records/$DNS_RECORD_ID" \
+      -H "Authorization: Bearer $CF_API_TOKEN" \
+      -H "Content-Type: application/json")
+    
+    DELETE_SUCCESS=$(echo "$DELETE_RESPONSE" | jq -r '.success')
+    
+    if [[ "$DELETE_SUCCESS" == "true" ]]; then
+      echo "✅ Subdominio $DOMAIN eliminado de Cloudflare."
+    else
+      echo "⚠️  Error al eliminar de Cloudflare:"
+      echo "$DELETE_RESPONSE" | jq -r '.errors[]?.message' 2>/dev/null || echo "   Error desconocido"
+    fi
+  else
+    echo "⚠️  No se encontró registro DNS para $DOMAIN en Cloudflare."
+    echo "   Respuesta de API: $(echo "$DNS_RESPONSE" | jq -r '.result | length') registros encontrados"
+  fi
 fi
 
 # Limpiar puerto usado
