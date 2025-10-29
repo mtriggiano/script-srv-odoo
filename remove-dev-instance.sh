@@ -22,7 +22,7 @@ else
 fi
 
 echo -e "\n🗑️  Nombre de la instancia de desarrollo a eliminar:"
-echo "   (Escribe solo el nombre, ej: juan, maria, testing)"
+echo "   (Escribe el nombre completo como aparece arriba, ej: dev-mtg, dev-dev-nacho)"
 read -p "> " DEV_INPUT
 
 # Validar entrada
@@ -31,24 +31,38 @@ if [[ -z "$DEV_INPUT" ]]; then
   exit 1
 fi
 
-# Normalizar y construir nombre completo
+# Normalizar entrada
 DEV_INPUT=$(echo "$DEV_INPUT" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')
 
-# Si el usuario ya escribió "dev-", no duplicar
-if [[ "$DEV_INPUT" == dev-* ]]; then
+# Buscar la instancia exacta en el directorio
+INSTANCE=""
+if [[ -d "$DEV_ROOT/$DEV_INPUT" ]]; then
+  # El nombre ingresado existe tal cual
   INSTANCE="$DEV_INPUT"
-else
+elif [[ -d "$DEV_ROOT/dev-$DEV_INPUT" ]]; then
+  # Agregar prefijo "dev-" si no lo tiene
   INSTANCE="dev-$DEV_INPUT"
+else
+  # Buscar coincidencia parcial
+  MATCHES=$(ls -1 "$DEV_ROOT" 2>/dev/null | grep -i "$DEV_INPUT" || true)
+  MATCH_COUNT=$(echo "$MATCHES" | grep -c . || echo 0)
+  
+  if [[ $MATCH_COUNT -eq 1 ]]; then
+    INSTANCE="$MATCHES"
+    echo "ℹ️  Encontrada instancia: $INSTANCE"
+  elif [[ $MATCH_COUNT -gt 1 ]]; then
+    echo "❌ Múltiples instancias coinciden con '$DEV_INPUT':"
+    echo "$MATCHES" | sed 's/^/  - /'
+    echo "Por favor, especifica el nombre completo."
+    exit 1
+  else
+    echo "❌ No se encontró ninguna instancia que coincida con '$DEV_INPUT'."
+    exit 1
+  fi
 fi
 
 BASE_DIR="$DEV_ROOT/$INSTANCE"
 INFO_FILE="$BASE_DIR/info-instancia.txt"
-
-# Validar existencia
-if [[ ! -d "$BASE_DIR" ]]; then
-  echo "❌ La instancia '$INSTANCE' no existe en $DEV_ROOT."
-  exit 1
-fi
 
 # Detectar configuración desde info-instancia.txt
 if [[ -f "$INFO_FILE" ]]; then
